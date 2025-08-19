@@ -11,6 +11,7 @@ export default function Register({ onLogin }) {
   const [role, setRole] = useState("PATIENT");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [specialization, setSpecialization] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -32,8 +33,8 @@ export default function Register({ onLogin }) {
       return;
     }
 
-    if (role === "PATIENT" && !phoneNumber.trim()) {
-      setError("Phone number is required for patients");
+    if (!phoneNumber.trim()) {
+      setError("Phone number is required");
       setLoading(false);
       return;
     }
@@ -44,16 +45,31 @@ export default function Register({ onLogin }) {
       return;
     }
 
+    if (role === "DOCTOR" && !specialization.trim()) {
+      setError("Specialization is required for doctors");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const requestData = { name, email, password, role };
+      const requestData = { 
+        name, 
+        email, 
+        password, 
+        role,
+        phoneNumber
+      };
       
       if (role === "PATIENT") {
-        requestData.phoneNumber = phoneNumber;
         requestData.dateOfBirth = dateOfBirth;
+      } else if (role === "DOCTOR") {
+        requestData.specialization = specialization;
       }
+      // Admin doesn't need additional fields beyond phoneNumber
 
       const res = await api.post("/auth/register", requestData);
       
+      // Check if response contains token (auto-login) or just success message
       const token = res.data?.token || res.data?.jwt || res.data?.accessToken;
       if (token) {
         localStorage.setItem("token", token);
@@ -122,44 +138,81 @@ export default function Register({ onLogin }) {
               id="role"
               className="form-input form-select"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(e) => {
+                setRole(e.target.value);
+                // Reset role-specific fields when changing role
+                setDateOfBirth("");
+                setSpecialization("");
+              }}
             >
               <option value="PATIENT">Patient</option>
               <option value="DOCTOR">Doctor</option>
+              <option value="ADMIN">Administrator</option>
             </select>
           </div>
 
-          {role === "PATIENT" && (
-            <>
-              <div className="form-group">
-                <label className="form-label" htmlFor="phoneNumber">
-                  Phone Number
-                </label>
-                <input
-                  id="phoneNumber"
-                  type="tel"
-                  className="form-input"
-                  placeholder="Enter your phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  required
-                />
-              </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="phoneNumber">
+              Phone Number
+            </label>
+            <input
+              id="phoneNumber"
+              type="tel"
+              className="form-input"
+              placeholder="Enter your phone number"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              required
+            />
+          </div>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="dateOfBirth">
-                  Date of Birth
-                </label>
-                <input
-                  id="dateOfBirth"
-                  type="date"
-                  className="form-input"
-                  value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
-                  required
-                />
+          {role === "PATIENT" && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="dateOfBirth">
+                Date of Birth
+              </label>
+              <input
+                id="dateOfBirth"
+                type="date"
+                className="form-input"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          {role === "DOCTOR" && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="specialization">
+                Specialization
+              </label>
+              <input
+                id="specialization"
+                type="text"
+                className="form-input"
+                placeholder="e.g., Cardiology, Neurology, etc."
+                value={specialization}
+                onChange={(e) => setSpecialization(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          {role === "ADMIN" && (
+            <div className="form-group">
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#e3f2fd',
+                border: '1px solid #1976d2',
+                borderRadius: '6px',
+                fontSize: '14px',
+                color: '#1565c0'
+              }}>
+                <strong>Administrator Account</strong><br />
+                You will have full access to manage patients, doctors, and appointments.
               </div>
-            </>
+            </div>
           )}
 
           <div className="form-group">
