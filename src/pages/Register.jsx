@@ -65,7 +65,6 @@ export default function Register({ onLogin }) {
       } else if (role === "DOCTOR") {
         requestData.specialization = specialization;
       }
-      // Admin doesn't need additional fields beyond phoneNumber
 
       const res = await api.post("/auth/register", requestData);
       
@@ -147,7 +146,6 @@ export default function Register({ onLogin }) {
             >
               <option value="PATIENT">Patient</option>
               <option value="DOCTOR">Doctor</option>
-              <option value="ADMIN">Administrator</option>
             </select>
           </div>
 
@@ -196,22 +194,6 @@ export default function Register({ onLogin }) {
                 onChange={(e) => setSpecialization(e.target.value)}
                 required
               />
-            </div>
-          )}
-
-          {role === "ADMIN" && (
-            <div className="form-group">
-              <div style={{
-                padding: '12px',
-                backgroundColor: '#e3f2fd',
-                border: '1px solid #1976d2',
-                borderRadius: '6px',
-                fontSize: '14px',
-                color: '#1565c0'
-              }}>
-                <strong>Administrator Account</strong><br />
-                You will have full access to manage patients, doctors, and appointments.
-              </div>
             </div>
           )}
 

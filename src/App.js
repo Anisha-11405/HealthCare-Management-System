@@ -7,10 +7,13 @@ import BookAppointment from "./pages/BookAppointment";
 import Appointments from "./pages/Appointments";
 import Doctors from "./pages/Doctors";
 import Patients from "./pages/Patients";
-import Profile from "./pages/Profile";
+import DoctorPatients from "./pages/DoctorPatients"; // ✅ NEW import
+// import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import SetAvailability from "./pages/SetAvailability"; // Import the new component
+import SetAvailability from "./pages/SetAvailability";
+import AdminDoctorManagement from "./pages/AdminDoctorManagement";
+import DoctorProfileManagement from "./pages/DoctorProfileManagement";
 import api from "./utils/api";
 import "./App.css";
 
@@ -28,11 +31,11 @@ export const useUser = () => {
 // Role-based route protection component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useUser();
-  
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
       <div className="access-denied">
@@ -46,7 +49,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       </div>
     );
   }
-  
+
   return children;
 };
 
@@ -60,24 +63,14 @@ export default function App() {
       try {
         const token = localStorage.getItem("token");
         const isLoggedIn = localStorage.getItem("isAuthenticated");
-        
-        console.log("🔍 Checking auth status:", { 
-          token: !!token, 
-          isLoggedIn,
-          tokenLength: token?.length 
-        });
-        
+
         if (token && token.trim() !== "" && isLoggedIn === "true") {
           try {
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            
-            // Fetch user information
+            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             const userResponse = await api.get("/auth/me");
             setUser(userResponse.data);
             setIsAuthenticated(true);
-            console.log("User authenticated:", userResponse.data);
           } catch (error) {
-            console.log("Token validation failed:", error.response?.status);
             localStorage.removeItem("token");
             localStorage.removeItem("isAuthenticated");
             setIsAuthenticated(false);
@@ -88,10 +81,8 @@ export default function App() {
           localStorage.removeItem("isAuthenticated");
           setIsAuthenticated(false);
           setUser(null);
-          console.log("No valid authentication found");
         }
       } catch (error) {
-        console.error("Auth check error:", error);
         localStorage.removeItem("token");
         localStorage.removeItem("isAuthenticated");
         setIsAuthenticated(false);
@@ -105,41 +96,26 @@ export default function App() {
   }, []);
 
   const handleLogin = async (token) => {
-    console.log("Login handler called with token:", !!token);
-    
     if (token) {
       localStorage.setItem("token", token);
       localStorage.setItem("isAuthenticated", "true");
-      
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       try {
-        // Fetch user information after login
         const userResponse = await api.get("/auth/me");
         setUser(userResponse.data);
         setIsAuthenticated(true);
-        console.log("Authentication state updated with user:", userResponse.data);
       } catch (error) {
-        console.error("Failed to fetch user info after login:", error);
-        setIsAuthenticated(true); // Still authenticate, but without user data
+        setIsAuthenticated(true);
       }
-    } else {
-      console.error("No token provided to login handler");
     }
   };
 
   const handleLogout = () => {
-    console.log("Logging out...");
-    
     localStorage.removeItem("isAuthenticated");
     localStorage.removeItem("token");
-    
-    delete api.defaults.headers.common['Authorization'];
-    
+    delete api.defaults.headers.common["Authorization"];
     setIsAuthenticated(false);
     setUser(null);
-    
-    console.log("Logout complete");
   };
 
   if (isLoading) {
@@ -163,65 +139,79 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/dashboard" element={<Home />} />
-                  
-                  {/* Patient and Admin can book appointments */}
-                  <Route 
-                    path="/book" 
+
+                  {/* Patient + Admin → book appointment */}
+                  <Route
+                    path="/book"
                     element={
-                      <ProtectedRoute allowedRoles={['PATIENT', 'ADMIN']}>
+                      <ProtectedRoute allowedRoles={["PATIENT", "ADMIN"]}>
                         <BookAppointment />
                       </ProtectedRoute>
-                    } 
+                    }
                   />
-                  
-                  {/* All roles can view appointments (filtered by role in component) */}
-                  <Route 
-                    path="/appointments" 
+
+                  {/* All roles → appointments */}
+                  <Route
+                    path="/appointments"
                     element={
-                      <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR', 'ADMIN']}>
+                      <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "ADMIN"]}>
                         <Appointments />
                       </ProtectedRoute>
-                    } 
+                    }
                   />
-                  
-                  {/* Patients and Admins can search doctors */}
-                  <Route 
-                    path="/doctors" 
+
+                  {/* Patient + Admin → find/manage doctors */}
+                  <Route
+                    path="/doctors"
                     element={
-                      <ProtectedRoute allowedRoles={['PATIENT', 'ADMIN']}>
+                      <ProtectedRoute allowedRoles={["PATIENT", "ADMIN"]}>
                         <Doctors />
                       </ProtectedRoute>
-                    } 
+                    }
                   />
-                  
-                  {/* Doctors and Admins can view patients */}
-                  <Route 
-                    path="/patients" 
+
+                  {/* Admin → manage patients */}
+                  <Route
+                    path="/patients"
                     element={
-                      <ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN']}>
+                      <ProtectedRoute allowedRoles={["ADMIN"]}>
                         <Patients />
                       </ProtectedRoute>
-                    } 
+                    }
                   />
-                  
-                  {/* Only Doctors can set availability */}
-                  <Route 
-                    path="/set-availability" 
+
+                  {/* Doctor → only their patients */}
+                  <Route
+                    path="/my-patients"
                     element={
-                      <ProtectedRoute allowedRoles={['DOCTOR']}>
+                      <ProtectedRoute allowedRoles={["DOCTOR"]}>
+                        <DoctorPatients />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Doctor → set availability */}
+                  <Route
+                    path="/set-availability"
+                    element={
+                      <ProtectedRoute allowedRoles={["DOCTOR"]}>
                         <SetAvailability />
                       </ProtectedRoute>
-                    } 
+                    }
                   />
-                  
-                  {/* All authenticated users can manage their profile */}
-                  <Route path="/profile" element={<Profile />} />
-                  
-                  {/* Redirect authenticated users away from auth pages */}
+
+                  {/* All roles → profile */}
+                  {/* <Route path="/profile" element={<Profile />} /> */}
+
+                  <Route path="/admin/doctors" element={<AdminDoctorManagement />} />
+  
+                  <Route path="/doctor/profile" element={<DoctorProfileManagement />} />
+
+                  {/* Prevent auth pages when logged in */}
                   <Route path="/login" element={<Navigate to="/" replace />} />
                   <Route path="/register" element={<Navigate to="/" replace />} />
-                  
-                  {/* Catch all other routes */}
+
+                  {/* Catch-all */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </main>

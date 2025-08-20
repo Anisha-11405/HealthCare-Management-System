@@ -17,50 +17,70 @@ export default function Login({ onLogin }) {
     }
   }, [location]);
 
-
   const handleSubmit = async (e) => {
-  console.log("Form submitted!");
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+    console.log("Form submitted!");
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  console.log("Email:", email);
-  console.log("Password:", password ? "***" : "empty");
-  console.log("API base URL:", api.defaults.baseURL);
+    console.log("Email:", email);
+    console.log("Password:", password ? "***" : "empty");
+    console.log("API base URL:", api.defaults.baseURL);
 
-  try {
-    console.log("About to make API call to /auth/login");
-    const res = await api.post("/auth/login", { email, password });
-    console.log("API Response received:", res.data);
-    
-    const token = res.data?.token || res.data?.jwt || res.data?.accessToken;
-    
-    if (token) {
-      console.log("Login successful, token received:", token.substring(0, 20) + "...");
-      localStorage.setItem("token", token);
-      localStorage.setItem("isAuthenticated", "true");
+    try {
+      console.log("About to make API call to /auth/login");
+      const res = await api.post("/auth/login", { email, password });
+      console.log("API Response received:", res.data);
       
-      if (onLogin) {
-        onLogin(token);
+      const token = res.data?.token || res.data?.jwt || res.data?.accessToken;
+      const userData = res.data?.user;
+      
+      if (token && userData) {
+        console.log("Login successful, token received:", token.substring(0, 20) + "...");
+        console.log("User data received:", userData);
+        
+        // Store both token and user data
+        localStorage.setItem("authToken", token);
+        localStorage.setItem("user", JSON.stringify(userData)); // This was missing!
+        localStorage.setItem("isAuthenticated", "true");
+        
+        if (onLogin) {
+          onLogin(token, userData);
+        }
+        
+        // Navigate based on user role
+        const redirectPath = getUserDashboardPath(userData.role);
+        navigate(redirectPath, { replace: true });
+      } else {
+        console.log("Missing token or user data in response:", res.data);
+        setError("Login successful but incomplete response received");
       }
-      
-      navigate("/", { replace: true });
-    } else {
-      console.log("No token in response:", res.data);
-      setError("Login successful but no token received");
+    } catch (err) {
+      console.error("Login error:", err);
+      console.error("Error response:", err.response);
+      const msg = err.response?.data?.message || 
+                  err.response?.data || 
+                  err.message || 
+                  "Login failed";
+      setError(typeof msg === "string" ? msg : "Invalid credentials");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("Login error:", err);
-    console.error("Error response:", err.response);
-    const msg = err.response?.data?.message || 
-                err.response?.data || 
-                err.message || 
-                "Login failed";
-    setError(typeof msg === "string" ? msg : "Invalid credentials");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  // Helper function to determine dashboard path based on role
+  const getUserDashboardPath = (role) => {
+    switch (role) {
+      case 'DOCTOR':
+        return '/doctor-dashboard';
+      case 'PATIENT':
+        return '/patient-dashboard';
+      case 'ADMIN':
+        return '/admin-dashboard';
+      default:
+        return '/';
+    }
+  };
 
   return (
     <div className="auth-container">

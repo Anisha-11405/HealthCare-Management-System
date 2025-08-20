@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { useUser } from "../App";
-import api from "../utils/api";
+import React, { useState, useEffect, useCallback } from "react";
+
+// Mock user context for demo
+const useUser = () => ({
+  user: { id: 'doc123', role: 'DOCTOR', name: 'Dr. Smith' }
+});
+
+// Mock API for demo
+const api = {
+  post: async (url, data) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    console.log('Saving availability:', data);
+    return { success: true };
+  }
+};
 
 const SetAvailability = () => {
   const { user } = useUser();
   const [availabilitySlots, setAvailabilitySlots] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [appointments, setAppointments] = useState([]);
-  const [loadingAppointments, setLoadingAppointments] = useState(true);
 
-  // Default time slots
   const timeSlots = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "12:00", "12:30", "14:00", "14:30", "15:00", "15:30",
@@ -27,13 +35,7 @@ const SetAvailability = () => {
     { key: 'sunday', label: 'Sunday' }
   ];
 
-  useEffect(() => {
-    loadMyAppointments();
-    initializeAvailability();
-  }, []);
-
-  const initializeAvailability = () => {
-    // Initialize with default availability (empty for now)
+  const initializeAvailability = useCallback(() => {
     const defaultSlots = daysOfWeek.map(day => ({
       day: day.key,
       dayLabel: day.label,
@@ -41,19 +43,11 @@ const SetAvailability = () => {
       isAvailable: false
     }));
     setAvailabilitySlots(defaultSlots);
-  };
+  }, []);
 
-  const loadMyAppointments = async () => {
-    try {
-      setLoadingAppointments(true);
-      const response = await api.get('/api/appointments/my-appointments');
-      setAppointments(response.data || []);
-    } catch (error) {
-      console.error('Failed to load appointments:', error);
-    } finally {
-      setLoadingAppointments(false);
-    }
-  };
+  useEffect(() => {
+    initializeAvailability();
+  }, [initializeAvailability]);
 
   const toggleDayAvailability = (dayKey) => {
     setAvailabilitySlots(prev => 
@@ -150,36 +144,10 @@ const SetAvailability = () => {
     }
   };
 
-  const handleAppointmentAction = async (appointmentId, action) => {
-    try {
-      const endpoint = action === 'accept' 
-        ? `/api/appointments/${appointmentId}/confirm`
-        : `/api/appointments/${appointmentId}/cancel`;
-      
-      await api.patch(endpoint);
-      loadMyAppointments();
-      alert(`Appointment ${action}ed successfully!`);
-    } catch (error) {
-      console.error(`Failed to ${action} appointment:`, error);
-      alert(`Failed to ${action} appointment. Please try again.`);
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    const statusStyles = {
-      PENDING: { backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7' },
-      CONFIRMED: { backgroundColor: '#d1edff', color: '#0c5460', border: '1px solid #b8daff' },
-      CANCELLED: { backgroundColor: '#f8d7da', color: '#721c24', border: '1px solid #f5c6cb' },
-      COMPLETED: { backgroundColor: '#d4edda', color: '#155724', border: '1px solid #c3e6cb' }
-    };
-    
-    return statusStyles[status] || statusStyles.PENDING;
-  };
-
   if (user?.role !== 'DOCTOR') {
     return (
-      <div className="container">
-        <div className="card feedback error">
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
           Access Denied: Only doctors can set availability.
         </div>
       </div>
@@ -187,148 +155,70 @@ const SetAvailability = () => {
   }
 
   return (
-    <div className="container">
-      <div className="header">
-        <h1>Set Availability</h1>
-        <div className="subtle">Manage your weekly availability and appointments</div>
-      </div>
-
-      {/* Pending Appointments Section */}
-      <div className="card" style={{ marginBottom: '30px' }}>
-        <h2 style={{ marginBottom: '20px', color: '#333' }}>
-          📋 Pending Appointments
-          {loadingAppointments && <span className="subtle"> (Loading...)</span>}
-        </h2>
-        
-        {!loadingAppointments && (
-          <>
-            {appointments.filter(apt => apt.status === 'PENDING').length === 0 ? (
-              <div className="subtle" style={{ padding: '20px', textAlign: 'center' }}>
-                No pending appointments at the moment.
-              </div>
-            ) : (
-              <div className="container grid grid-2" style={{ gap: '15px' }}>
-                {appointments
-                  .filter(apt => apt.status === 'PENDING')
-                  .map(appointment => (
-                    <div key={appointment.id} className="card" style={{ 
-                      padding: '15px', 
-                      borderLeft: '4px solid #ffc107',
-                      backgroundColor: '#fffbf0'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
-                        <div>
-                          <strong>{appointment.patient?.name || 'Unknown Patient'}</strong>
-                          <div className="subtle">ID: {appointment.patient?.id}</div>
-                        </div>
-                        <span style={{
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.8em',
-                          ...getStatusBadge(appointment.status)
-                        }}>
-                          {appointment.status}
-                        </span>
-                      </div>
-                      
-                      <div style={{ marginBottom: '10px' }}>
-                        <div>📅 {appointment.appointmentDate}</div>
-                        <div>⏰ {appointment.appointmentTime}</div>
-                        <div style={{ marginTop: '5px' }}>
-                          <strong>Reason:</strong> {appointment.reason}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                        <button
-                          onClick={() => handleAppointmentAction(appointment.id, 'accept')}
-                          style={{
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.9em'
-                          }}
-                        >
-                          ✓ Accept
-                        </button>
-                        <button
-                          onClick={() => handleAppointmentAction(appointment.id, 'decline')}
-                          style={{
-                            backgroundColor: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.9em'
-                          }}
-                        >
-                          ✗ Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                }
-              </div>
-            )}
-          </>
-        )}
+    <div style={{ padding: '20px', backgroundColor: '#f8f9fa', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
+      <div style={{ marginBottom: '30px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#333', marginBottom: '8px' }}>
+          Set Availability
+        </h1>
+        <p style={{ color: '#666', fontSize: '16px' }}>
+          Manage your weekly availability
+        </p>
       </div>
 
       {/* Weekly Availability Section */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, color: '#333' }}>🗓️ Weekly Availability</h2>
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e0e0e0', padding: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#333', margin: 0 }}>
+            🗓️ Weekly Availability
+          </h2>
           <button
             onClick={saveAvailability}
             disabled={saving}
             style={{
-              backgroundColor: '#007bff',
+              backgroundColor: saving ? '#6c757d' : '#007bff',
               color: 'white',
               border: 'none',
               padding: '10px 20px',
               borderRadius: '5px',
+              fontSize: '14px',
+              fontWeight: '500',
               cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.6 : 1
+              opacity: saving ? 0.6 : 1,
+              transition: 'all 0.2s'
             }}
           >
             {saving ? 'Saving...' : '💾 Save Availability'}
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {availabilitySlots.map(daySlot => (
-            <div key={daySlot.day} className="card" style={{ 
-              padding: '20px', 
-              backgroundColor: daySlot.isAvailable ? '#f8f9fa' : '#ffffff',
-              border: `2px solid ${daySlot.isAvailable ? '#007bff' : '#dee2e6'}`
+            <div key={daySlot.day} style={{
+              border: `2px solid ${daySlot.isAvailable ? '#007bff' : '#dee2e6'}`,
+              borderRadius: '8px',
+              padding: '20px',
+              backgroundColor: daySlot.isAvailable ? '#f8f9fa' : 'white',
+              transition: 'all 0.2s'
             }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginBottom: '15px' 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input
                     type="checkbox"
                     checked={daySlot.isAvailable}
                     onChange={() => toggleDayAvailability(daySlot.day)}
-                    style={{ transform: 'scale(1.2)' }}
+                    style={{ width: '18px', height: '18px', accentColor: '#007bff' }}
                   />
-                  <h3 style={{ 
-                    margin: 0, 
-                    color: daySlot.isAvailable ? '#007bff' : '#6c757d' 
-                  }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: daySlot.isAvailable ? '#007bff' : '#6c757d', margin: 0 }}>
                     {daySlot.dayLabel}
                   </h3>
                   {daySlot.timeSlots.length > 0 && (
-                    <span className="badge" style={{ 
-                      backgroundColor: '#28a745', 
-                      color: 'white' 
+                    <span style={{
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: '500'
                     }}>
                       {daySlot.timeSlots.length} slots
                     </span>
@@ -336,99 +226,63 @@ const SetAvailability = () => {
                 </div>
 
                 {daySlot.isAvailable && (
-                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => handleQuickSet(daySlot.day, 'morning')}
-                      style={{ 
-                        padding: '4px 8px', 
-                        fontSize: '0.8em',
-                        backgroundColor: '#ffc107',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Morning
-                    </button>
-                    <button
-                      onClick={() => handleQuickSet(daySlot.day, 'afternoon')}
-                      style={{ 
-                        padding: '4px 8px', 
-                        fontSize: '0.8em',
-                        backgroundColor: '#17a2b8',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Afternoon
-                    </button>
-                    <button
-                      onClick={() => handleQuickSet(daySlot.day, 'evening')}
-                      style={{ 
-                        padding: '4px 8px', 
-                        fontSize: '0.8em',
-                        backgroundColor: '#6f42c1',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Evening
-                    </button>
-                    <button
-                      onClick={() => handleQuickSet(daySlot.day, 'all')}
-                      style={{ 
-                        padding: '4px 8px', 
-                        fontSize: '0.8em',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      All Day
-                    </button>
-                    <button
-                      onClick={() => handleQuickSet(daySlot.day, 'clear')}
-                      style={{ 
-                        padding: '4px 8px', 
-                        fontSize: '0.8em',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Clear
-                    </button>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {['morning', 'afternoon', 'evening', 'all', 'clear'].map((type, index) => {
+                      const colors = ['#ffc107', '#17a2b8', '#6f42c1', '#28a745', '#dc3545'];
+                      const labels = ['Morning', 'Afternoon', 'Evening', 'All Day', 'Clear'];
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => handleQuickSet(daySlot.day, type)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            backgroundColor: colors[index],
+                            color: index === 0 ? '#333' : 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            transition: 'opacity 0.2s'
+                          }}
+                          onMouseOver={e => e.target.style.opacity = '0.8'}
+                          onMouseOut={e => e.target.style.opacity = '1'}
+                        >
+                          {labels[index]}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               {daySlot.isAvailable && (
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', 
-                  gap: '8px' 
-                }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
                   {timeSlots.map(timeSlot => (
                     <button
                       key={timeSlot}
                       onClick={() => toggleTimeSlot(daySlot.day, timeSlot)}
                       style={{
                         padding: '8px 4px',
-                        fontSize: '0.85em',
+                        fontSize: '14px',
                         border: '1px solid #dee2e6',
                         borderRadius: '4px',
                         backgroundColor: daySlot.timeSlots.includes(timeSlot) ? '#007bff' : 'white',
                         color: daySlot.timeSlots.includes(timeSlot) ? 'white' : '#333',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s',
+                        fontWeight: daySlot.timeSlots.includes(timeSlot) ? '500' : 'normal'
+                      }}
+                      onMouseOver={e => {
+                        if (!daySlot.timeSlots.includes(timeSlot)) {
+                          e.target.style.borderColor = '#007bff';
+                          e.target.style.backgroundColor = '#f8f9fa';
+                        }
+                      }}
+                      onMouseOut={e => {
+                        if (!daySlot.timeSlots.includes(timeSlot)) {
+                          e.target.style.borderColor = '#dee2e6';
+                          e.target.style.backgroundColor = 'white';
+                        }
                       }}
                     >
                       {timeSlot}
